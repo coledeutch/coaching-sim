@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 import { simulate } from '../src/engine/sim';
 import { detectConcepts } from '../src/engine/concepts';
 import { numberReceivers } from '../src/engine/formation';
-import { TEMPLATE_PLAYS } from '../src/content/plays';
+import { TEMPLATE_PLAYS, TEMPLATE_RUNS } from '../src/content/plays';
+import { simulateRun, countBox } from '../src/engine/run';
 import { lookById } from '../src/content/looks';
 
 const play = (id: string) => TEMPLATE_PLAYS.find((p) => p.id === id)!;
@@ -137,5 +138,38 @@ describe('Engine behaviour', () => {
         expect(r.frames.length).toBeGreaterThan(10);
       }
     }
+  });
+});
+
+describe('Run game: count the box', () => {
+  const runPlay = (id: string) => TEMPLATE_RUNS.find((p) => p.id === id)!;
+  const avg = (playId: string, lookId: string) => {
+    let total = 0;
+    for (let s = 1; s <= 300; s++) total += simulateRun(runPlay(playId), lookById(lookId), { seed: s }).result.yards;
+    return total / 300;
+  };
+
+  it('counts a rolled-down safety: Cover 3 Sky puts 7 in the box vs 2x2', () => {
+    expect(countBox(runPlay('t-iz'), lookById('cover3-sky')).inBox.length).toBe(7);
+    expect(countBox(runPlay('t-iz'), lookById('cover2')).inBox.length).toBe(6);
+  });
+
+  it('runs better against a 2-high, 6-man box than a loaded 1-high box', () => {
+    expect(avg('t-iz', 'cover2')).toBeGreaterThan(avg('t-iz', 'cover3-sky') + 2);
+  });
+
+  it('a tight end adds a blocker: Power from 11 personnel has the numbers vs a 6-man box', () => {
+    expect(countBox(runPlay('t-power'), lookById('cover2')).advantage).toBeGreaterThan(0);
+  });
+
+  it('running into Cover 0 is boom or bust: lots of negative plays', () => {
+    let neg = 0;
+    for (let s = 1; s <= 300; s++) if (simulateRun(runPlay('t-iz'), lookById('cover0'), { seed: s }).result.yards <= 0) neg++;
+    expect(neg / 300).toBeGreaterThan(0.3);
+  });
+
+  it('explains itself with a box count', () => {
+    const r = simulateRun(runPlay('t-iz'), lookById('cover3-sky'), { seed: 1 });
+    expect(r.trace.some((e) => e.kind === 'box' && /7 defenders in the box/.test(e.text))).toBe(true);
   });
 });

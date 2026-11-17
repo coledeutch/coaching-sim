@@ -226,6 +226,55 @@ export const LESSONS: Lesson[] = [
       { type: 'try', playId: 't-dagger', lookId: 'cover4', text: 'Practice: Dagger vs Quarters. Who takes the seam?' },
     ],
   },
+  {
+    id: 'run-game',
+    title: 'The Run Game: Count the Box',
+    minutes: 6,
+    summary: 'The most important math in football: defenders in the box vs. blockers. It tells you whether to run or throw.',
+    topics: ['boxCount', 'runSchemes'],
+    blocks: [
+      { type: 'p', text: '"The defense tells you what to do," Ray says. "You just have to count." The **box** is the area from tackle to tackle plus a couple of yards, out to about 7-8 yards deep. Count the defenders in it, then count your blockers.' },
+      { type: 'list', items: [
+        '**More blockers than defenders:** run the ball. Someone is getting a free path.',
+        '**Even:** a hat on a hat. The run works if your line wins one-on-one.',
+        '**More defenders than blockers:** they\'ve loaded the box. Someone will be free to tackle the runner, so **throw**. A loaded box means they\'re short somewhere in coverage.',
+      ] },
+      { type: 'key', text: 'Shells and boxes are connected. Two deep safeties usually means only 6 in the box (a run look). One deep safety lets the defense roll a safety down for 7 or 8 in the box (a pass look).' },
+      { type: 'diagram', playId: 't-iz', lookId: 'cover2', caption: 'Inside Zone vs Cover 2: two safeties deep, 6 in the box. Even numbers: run it.' },
+      { type: 'diagram', playId: 't-iz', lookId: 'cover3-sky', caption: 'Inside Zone vs Cover 3 Sky: the strong safety rolled down. 7 in the box: throw.' },
+      { type: 'h', text: 'Two ways to block a run' },
+      { type: 'list', items: [
+        '**Inside Zone**: the whole line steps the same way and blocks an area. The back reads the blocks and cuts where the defense isn\'t. The backside end is left unblocked on purpose, because the play hits before he can get there. Works from any formation.',
+        '**Power**: a gap scheme. The play side blocks down, and the backside guard **pulls** and leads through the hole. That adds a blocker at the point of attack. Best with a tight end; physical and downhill.',
+      ] },
+      { type: 'p', text: 'Spread formations help the run by pulling defenders out of the box: every receiver split wide takes a defender with him. A tight end does the opposite: he adds a blocker.' },
+      { type: 'check', id: 'rg-1', topic: 'boxCount', question: 'You have 5 offensive linemen and no tight end. The defense has 7 defenders in the box. Run or pass?', options: ['Run: 7 is normal', 'Pass: they have more defenders than you can block', 'Run Power: the pulling guard fixes it', 'It doesn\'t matter'], answer: 1, explain: 'Even leaving the backside end unblocked, 6 defenders vs 5 blockers means somebody is free. A loaded box usually means one-on-one coverage outside.' },
+      { type: 'check', id: 'rg-2', topic: 'boxCount', question: 'Two high safeties, 6 in the box, and you have a tight end in to block. What does the math say?', options: ['Throw it: two-high means pass', 'Run it: 6 blockers vs 6 defenders, minus the unblocked backside end', 'Punt', 'Run only if it\'s 3rd down'], answer: 1, explain: 'Your 6 blockers vs their 6 defenders, with the backside end left unblocked by design, is a numbers advantage. Run the ball.' },
+      { type: 'check', id: 'rg-3', topic: 'runSchemes', question: 'What makes Power different from Inside Zone?', options: ['Power is a pass play', 'Power pulls a guard to add a blocker at the point of attack', 'Power never uses a tight end', 'Inside Zone always goes outside'], answer: 1, explain: 'The pulling guard leads through the hole: an extra hat where the ball is going.' },
+      { type: 'try', playId: 't-iz', lookId: 'cover3-sky', text: 'Practice: count the box for Inside Zone against different looks.' },
+    ],
+  },
+  {
+    id: 'game-planning',
+    title: 'Game Planning: Fewer Plays, More Reps',
+    minutes: 5,
+    summary: 'How coordinators turn a scouting report into a call sheet, and why a short playbook the team knows beats a big one it doesn\'t.',
+    topics: ['install'],
+    blocks: [
+      { type: 'p', text: 'Every week starts with the same question: **what does this defense do, and which of our plays beat it?** The scouting report tells you their habits: which coverages, on which downs. The game plan is your answer.' },
+      { type: 'list', items: [
+        '**Start with their top two coverages.** If they play Cover 3 most of the time, you need two or three Cover 3 beaters (Stick, Curl-Flat, Four Verticals, Flood).',
+        '**Have a plan for their pressure down.** If they blitz on 3rd & long, carry a hot answer (Slant-Flat, Mesh).',
+        '**Keep the run game honest.** Even a passing team needs a run to punish a light box.',
+        '**Twelve plays is plenty.** Most teams win with far fewer than they think.',
+      ] },
+      { type: 'key', text: 'Install is real. A play your team has never practiced will get busted: wrong route depth, a missed block. Every practice rep makes the team sharper on that play. Spread your reps over 20 plays and nothing gets good.' },
+      { type: 'h', text: 'Self-scouting' },
+      { type: 'p', text: 'The other coordinator is scouting you too. Call the same play over and over and he\'ll take it away. Watch the press box notes during the game: when he adjusts, you go to the play that beats his adjustment. That\'s the chess match.' },
+      { type: 'check', id: 'gp-1', topic: 'install', question: 'Your opponent plays Cover 2 on 60% of snaps. Which play belongs at the top of your call sheet?', options: ['Curl-Flat', 'Smash', 'Four Verticals vs Tampa', 'Running into an 8-man box'], answer: 1, explain: 'Smash is the classic Cover 2 beater: it high-lows the squatting corner.' },
+      { type: 'check', id: 'gp-2', topic: 'install', question: 'You have 8 practice reps this week. What\'s the better plan?', options: ['1 rep each on 8 different new plays', 'Several reps each on the 3-4 plays you\'ll lean on most', 'No reps: save energy for Friday', 'All 8 reps on a play you won\'t call'], answer: 1, explain: 'Install matters more than volume. The plays you\'ll call most should be the ones your team knows best.' },
+    ],
+  },
 ];
 
 export const lessonById = (id: string) => LESSONS.find((l) => l.id === id);

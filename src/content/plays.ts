@@ -1,4 +1,4 @@
-import type { Assignment, Play, RouteType } from '../model/types';
+import type { Assignment, Play, RouteType, RunDesign } from '../model/types';
 import { FORMATIONS, formationSpots } from './formations';
 
 type Spec = Record<string, RouteType | 'protect' | [RouteType, number]>;
@@ -98,3 +98,33 @@ export const TEMPLATE_PLAYS: Play[] = [
       'QB: seam to dig to drag.',
     ]),
 ];
+
+function buildRun(id: string, name: string, formation: string, run: RunDesign, notes: string, teachingPoints: string[]): Play {
+  const f = FORMATIONS.find((x) => x.id === formation)!;
+  const players = formationSpots(f).map((p) =>
+    p.role === 'OL' || p.role === 'QB' ? p : { ...p, assignment: { kind: 'block' } as Assignment },
+  );
+  return { id, name, formation, drop: 3, players, progression: [], notes, teachingPoints, run, isTemplate: true };
+}
+
+export const TEMPLATE_RUNS: Play[] = [
+  buildRun('t-iz', 'Inside Zone', 'doubles', { scheme: 'insideZone', dir: 'R' },
+    'The base run of almost every modern offense. The whole line steps play side together; the back reads the blocks and cuts where the defense isn\'t. Best against a light box.',
+    [
+      'Line: step play side, double-team the down linemen, and climb to the linebackers.',
+      'Back: aim at the play-side guard. Read the first down lineman past the center: bang it, bend it, or bounce it.',
+      'Receivers: stalk-block the defender over you. A long run needs blocks downfield.',
+    ]),
+  buildRun('t-iz-l', 'Inside Zone Left', 'doubles', { scheme: 'insideZone', dir: 'L' },
+    'Inside Zone to the left: same rules, opposite direction. Run it toward the side with fewer defenders.',
+    ['Same rules as Inside Zone, mirrored.']),
+  buildRun('t-power', 'Power', 'doublesTE', { scheme: 'power', dir: 'R' },
+    'Gap-scheme run: the backside guard pulls and leads through the hole. With a tight end, the play side gets an extra blocker at the point of attack. Downhill, physical football.',
+    [
+      'Play-side line: block down. The tight end and tackle double the end man on the line.',
+      'Backside guard: pull, find the first defender in the hole, and kick him out or lead through.',
+      'Back: be patient behind the pulling guard, then go downhill.',
+    ]),
+];
+
+export const ALL_TEMPLATES: Play[] = [...TEMPLATE_PLAYS, ...TEMPLATE_RUNS];

@@ -2,7 +2,7 @@
 export interface Topic {
   id: string;
   name: string;
-  group: 'Reading the defense' | 'Coverages' | 'Concepts' | 'Quarterbacking';
+  group: 'Reading the defense' | 'Coverages' | 'Concepts' | 'Run game' | 'Quarterbacking' | 'Game planning';
   lessonId: string;
 }
 
@@ -25,6 +25,9 @@ export const TOPICS: Topic[] = [
   { id: 'flood', name: 'Flood', group: 'Concepts', lessonId: 'cover3' },
   { id: 'mesh', name: 'Mesh', group: 'Concepts', lessonId: 'man-pressure' },
   { id: 'dagger', name: 'Dagger', group: 'Concepts', lessonId: 'quarters' },
+  { id: 'boxCount', name: 'Counting the box', group: 'Run game', lessonId: 'run-game' },
+  { id: 'runSchemes', name: 'Inside Zone & Power', group: 'Run game', lessonId: 'run-game' },
+  { id: 'install', name: 'Install & game planning', group: 'Game planning', lessonId: 'game-planning' },
   { id: 'protection', name: 'Protection & hot reads', group: 'Quarterbacking', lessonId: 'man-pressure' },
   { id: 'progression', name: 'Progressions', group: 'Quarterbacking', lessonId: 'progressions' },
 ];

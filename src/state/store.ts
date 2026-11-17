@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { MasteryEvidence, Play } from '../model/types';
+import type { Career, Coach } from '../model/career';
+import type { GameState } from '../engine/game';
+import { PHILOSOPHIES, startingRoster, welcomeMessages } from '../content/world';
 
-export type View = 'playbook' | 'practice' | 'classroom';
+export type View = 'office' | 'playbook' | 'practice' | 'classroom' | 'game';
 
 interface AppState {
   view: View;
@@ -28,6 +31,16 @@ interface AppState {
   checkAnswers: Record<string, number>;
   answerCheck: (id: string, choice: number) => void;
 
+  career: Career | null;
+  startCareer: (coach: Coach) => void;
+  updateCareer: (fn: (c: Career) => Career) => void;
+  resetCareer: () => void;
+  game: GameState | null;
+  setGame: (g: GameState | null) => void;
+  /** Practice: 'week' uses this week's reps vs the opponent's scout team; 'lab' is free experimentation */
+  practiceMode: 'week' | 'lab';
+  setPracticeMode: (m: 'week' | 'lab') => void;
+
   reps: number;
   /** Throw predictions made / correct (the headline "calls right" stat) */
   calls: number;
@@ -38,7 +51,7 @@ interface AppState {
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      view: 'practice',
+      view: 'office',
       setView: (view) => set({ view }),
 
       plays: [],
@@ -65,6 +78,30 @@ export const useStore = create<AppState>()(
       checkAnswers: {},
       answerCheck: (id, choice) => set((s) => ({ checkAnswers: { ...s.checkAnswers, [id]: choice } })),
 
+      career: null,
+      startCareer: (coach) => {
+        const starters = PHILOSOPHIES[coach.philosophy].starterPlays;
+        const career: Career = {
+          coach,
+          week: 1,
+          results: [],
+          jobSecurity: 55,
+          install: Object.fromEntries(starters.map((id) => [id, 1])),
+          gamePlan: [...starters],
+          practiceRepsLeft: coach.background === 'playersCoach' ? 11 : 8,
+          roster: startingRoster(coach.background),
+          inbox: welcomeMessages(coach.name, coach.background),
+          weekSteps: { scouted: false, planned: false },
+        };
+        set({ career, view: 'office', game: null, practicePlayId: starters[0] });
+      },
+      updateCareer: (fn) => set((s) => (s.career ? { career: fn(s.career) } : {})),
+      resetCareer: () => set({ career: null, game: null, view: 'office' }),
+      game: null,
+      setGame: (game) => set({ game }),
+      practiceMode: 'week',
+      setPracticeMode: (practiceMode) => set({ practiceMode }),
+
       reps: 0,
       calls: 0,
       callsRight: 0,
@@ -75,6 +112,6 @@ export const useStore = create<AppState>()(
           callsRight: s.callsRight + (call ? 1 : 0),
         })),
     }),
-    { name: 'chalkboard-v1', partialize: (s) => ({ plays: s.plays, evidence: s.evidence, checkAnswers: s.checkAnswers, reps: s.reps, calls: s.calls, callsRight: s.callsRight }) },
+    { name: 'chalkboard-v1', partialize: (s) => ({ career: s.career, game: s.game, plays: s.plays, evidence: s.evidence, checkAnswers: s.checkAnswers, reps: s.reps, calls: s.calls, callsRight: s.callsRight }) },
   ),
 );

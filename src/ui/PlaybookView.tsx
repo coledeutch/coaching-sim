@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Play, Point, RouteType } from '../model/types';
 import { useStore } from '../state/store';
-import { TEMPLATE_PLAYS } from '../content/plays';
+import { ALL_TEMPLATES as TEMPLATE_PLAYS } from '../content/plays';
 import { FORMATIONS, formationSpots } from '../content/formations';
 import { ROUTES, ROUTE_ORDER } from '../engine/routes';
 import { detectConcepts, CONCEPTS } from '../engine/concepts';
@@ -34,6 +34,10 @@ function blankPlay(): Play {
 export function validatePlay(play: Play): { level: 'error' | 'warn' | 'tip'; text: string }[] {
   const out: { level: 'error' | 'warn' | 'tip'; text: string }[] = [];
   const onLine = play.players.filter((p) => p.align.y >= -0.9);
+  if (play.run) {
+    if (onLine.length < 7) out.push({ level: 'error', text: `Illegal formation: only ${onLine.length} players on the line of scrimmage. You need at least 7.` });
+    return out;
+  }
   if (onLine.length < 7) {
     out.push({ level: 'error', text: `Illegal formation: only ${onLine.length} players on the line of scrimmage. You need at least 7 (five linemen plus two receivers, usually the widest one on each side).` });
   }
@@ -73,7 +77,7 @@ function snapAlign(p: Point, role: string): Point {
 }
 
 export function PlaybookView() {
-  const { plays, savePlay, deletePlay, setPractice, setView } = useStore();
+  const { plays, savePlay, deletePlay, setPractice, setView, setPracticeMode } = useStore();
   const [currentId, setCurrentId] = useState<string>(plays[0]?.id ?? TEMPLATE_PLAYS[0].id);
   const source = plays.find((p) => p.id === currentId) ?? TEMPLATE_PLAYS.find((p) => p.id === currentId) ?? TEMPLATE_PLAYS[0];
   const [draft, setDraft] = useState<Play>(source);
@@ -199,7 +203,7 @@ export function PlaybookView() {
               <button className="btn ghost" onClick={() => { if (confirm(`Delete "${draft.name}"?`)) { deletePlay(draft.id); setCurrentId(TEMPLATE_PLAYS[0].id); } }}>Delete</button>
             </>
           )}
-          <button className="btn" onClick={() => { if (!readOnly && dirty) save(); setPractice(draft.id); setView('practice'); }}>Test in Practice →</button>
+          <button className="btn" onClick={() => { if (!readOnly && dirty) save(); setPractice(draft.id); setPracticeMode('lab'); setView('practice'); }}>Test in the lab →</button>
         </div>
         {readOnly && <div className="banner">Template play: study it here, or duplicate it into your playbook to change it.</div>}
         <Field
@@ -238,7 +242,31 @@ export function PlaybookView() {
       </section>
 
       <aside className="panel inspector">
-        {sel ? (
+        {draft.run ? (
+          <div className="section">
+            <h3>Run play</h3>
+            <div className="route-grid">
+              {(['insideZone', 'power'] as const).map((sc) => (
+                <button key={sc} disabled={readOnly} className={`chip ${draft.run!.scheme === sc ? 'on' : ''}`} onClick={() => update((p) => ({ ...p, run: { ...p.run!, scheme: sc } }))}>
+                  {sc === 'insideZone' ? 'Inside Zone' : 'Power'}
+                </button>
+              ))}
+            </div>
+            <div className="route-grid">
+              {(['L', 'R'] as const).map((d) => (
+                <button key={d} disabled={readOnly} className={`chip ${draft.run!.dir === d ? 'on' : ''}`} onClick={() => update((p) => ({ ...p, run: { ...p.run!, dir: d } }))}>
+                  Run {d === 'L' ? 'left' : 'right'}
+                </button>
+              ))}
+            </div>
+            <p className="route-desc">
+              {draft.run.scheme === 'insideZone'
+                ? 'Inside Zone: the line steps play side together; the back reads the blocks and cuts. The backside end is left unblocked on purpose.'
+                : 'Power: the backside guard (dashed yellow) pulls and leads through the hole. Best with a tight end on the play side.'}
+            </p>
+            <p className="route-desc">Tip: the formation decides the box count. Spread receivers pull defenders out of the box; a tight end adds a blocker.</p>
+          </div>
+        ) : sel ? (
           <div className="section">
             <h3>{sel.id} <span className="muted">{numbering.labelOf[sel.id] ?? ''} · {sel.role}</span></h3>
             <div className="route-grid">
@@ -289,7 +317,7 @@ export function PlaybookView() {
           <div className="section"><p className="muted small">Select a receiver on the field to assign a route.</p></div>
         )}
 
-        <div className="section">
+        {!draft.run && <div className="section">
           <h3>Read order</h3>
           <ol className="prog">
             {draft.progression.map((id, i) => {
@@ -316,9 +344,9 @@ export function PlaybookView() {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className="section">
+        {!draft.run && <div className="section">
           <h3>Concepts</h3>
           {concepts.length === 0 && <p className="muted small">No named concept recognised yet. That's fine: the engine still simulates it. Named concepts unlock scheme notes.</p>}
           {concepts.map((c) => (
@@ -331,7 +359,7 @@ export function PlaybookView() {
               </div>
             </div>
           ))}
-        </div>
+        </div>}
 
         <div className="section">
           <h3>Coaching notes</h3>

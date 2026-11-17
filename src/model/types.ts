@@ -100,10 +100,20 @@ export interface Play {
   notes: string;
   /** Short coaching points you would tell players when installing it */
   teachingPoints: string[];
+  /** Present on run plays: the blocking scheme and which way it goes. Pass plays leave it out. */
+  run?: RunDesign;
   /** Template plays come with the game; the player's own plays are not templates */
   isTemplate?: boolean;
   createdAt?: number;
   updatedAt?: number;
+}
+
+export type RunScheme = 'insideZone' | 'power';
+
+export interface RunDesign {
+  scheme: RunScheme;
+  /** Play side */
+  dir: Side;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +239,8 @@ export type TraceKind =
   | 'throw'
   | 'result'
   | 'adjustment'
-  | 'scheme';
+  | 'scheme'
+  | 'box';
 
 /** One step of the engine's reasoning, written in coaching language. */
 export interface TraceEvent {
@@ -263,6 +274,8 @@ export interface ConflictInfo {
 }
 
 export type PlayResultKind =
+  | 'run'
+  | 'fumble'
   | 'complete'
   | 'incomplete'
   | 'interception'
@@ -278,6 +291,7 @@ export interface PlayResult {
 
 export interface SimResult {
   playId: string;
+  isRun?: boolean;
   lookId: string;
   seed: number;
   frames: Frame[];

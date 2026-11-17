@@ -27,7 +27,7 @@ export const FORMATIONS: FormationDef[] = [
       { id: 'H', role: 'WR', align: { x: -9, y: -1 } },
       { id: 'Y', role: 'WR', align: { x: 9, y: -1 } },
       { id: 'Z', role: 'WR', align: { x: 20, y: 0 } },
-      { id: 'RB', role: 'RB', align: { x: -1.5, y: -5 } },
+      { id: 'RB', role: 'RB', align: { x: -2.2, y: -5 } },
     ],
   },
   {
@@ -40,7 +40,7 @@ export const FORMATIONS: FormationDef[] = [
       { id: 'H', role: 'WR', align: { x: 7, y: -1 } },
       { id: 'Y', role: 'WR', align: { x: 12, y: -1 } },
       { id: 'Z', role: 'WR', align: { x: 20, y: 0 } },
-      { id: 'RB', role: 'RB', align: { x: -1.5, y: -5 } },
+      { id: 'RB', role: 'RB', align: { x: -2.2, y: -5 } },
     ],
   },
   {
@@ -53,7 +53,7 @@ export const FORMATIONS: FormationDef[] = [
       { id: 'H', role: 'WR', align: { x: -9, y: -1 } },
       { id: 'Y', role: 'TE', align: { x: 6.6, y: -0.8 } },
       { id: 'Z', role: 'WR', align: { x: 18, y: -1 } },
-      { id: 'RB', role: 'RB', align: { x: -1.5, y: -5 } },
+      { id: 'RB', role: 'RB', align: { x: -2.2, y: -5 } },
     ],
   },
   {

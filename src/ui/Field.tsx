@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { DefensiveLook, Frame, Play, Point } from '../model/types';
 import { routeWaypoints, ROUTES } from '../engine/routes';
 import { presnap } from '../engine/sim';
+import { runDiagram } from '../engine/run';
 import { FIELD_HALF_WIDTH } from '../engine/geometry';
 
 export interface FieldProps {
@@ -36,6 +37,7 @@ export function Field(props: FieldProps) {
   const [drag, setDrag] = useState<{ id: string; kind: 'player' | 'depth' } | null>(null);
 
   const defense = useMemo(() => (look ? presnap(play, look) : []), [play, look]);
+  const runDiag = useMemo(() => (play.run ? runDiagram(play) : null), [play]);
   const hiR = new Set(highlight?.receivers ?? []);
   const hiD = new Set(highlight?.defenders ?? []);
 
@@ -133,8 +135,26 @@ export function Field(props: FieldProps) {
           return null;
         })}
 
+      {/* Run play: blocking arrows and the ball carrier's path */}
+      {showRoutes && runDiag && (
+        <g className={frame ? 'faint-group' : ''}>
+          {runDiag.blocks.map((b) => (
+            <path
+              key={'b' + b.id}
+              className={`route block ${b.pull ? 'pull' : ''}`}
+              d={b.pull ? pullPath(b.from, b.to) : blockPath(b.from, b.to)}
+            />
+          ))}
+          <path
+            className="route carrier"
+            d={runDiag.path.map((q, i) => `${i ? 'L' : 'M'}${q.x.toFixed(2)},${(-q.y).toFixed(2)}`).join(' ')}
+            markerEnd="url(#arrow-hi)"
+          />
+        </g>
+      )}
+
       {/* Routes */}
-      {showRoutes &&
+      {showRoutes && !runDiag &&
         play.players.map((p) => {
           const a = p.assignment;
           if (a.kind === 'route') {
@@ -237,4 +257,17 @@ export function Field(props: FieldProps) {
       {frame?.ball && <ellipse className="ball" cx={frame.ball.x} cy={-frame.ball.y} rx={0.55} ry={0.38} />}
     </svg>
   );
+}
+
+/** A blocker's line ending in a "T" (the block). SVG y is flipped. */
+function blockPath(from: Point, to: Point): string {
+  const a = Math.atan2(to.y - from.y, to.x - from.x) + Math.PI / 2;
+  const dx = 0.6 * Math.cos(a);
+  const dy = 0.6 * Math.sin(a);
+  return `M${from.x},${-from.y} L${to.x},${-to.y} M${to.x - dx},${-(to.y - dy)} L${to.x + dx},${-(to.y + dy)}`;
+}
+
+/** A pulling guard: step back, run along the line, turn up through the hole. */
+function pullPath(from: Point, to: Point): string {
+  return `M${from.x},${-from.y} L${from.x},${-from.y + 1.4} L${to.x},${-from.y + 1.4} L${to.x},${-to.y}`;
 }

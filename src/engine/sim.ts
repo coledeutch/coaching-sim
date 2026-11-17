@@ -96,6 +96,19 @@ interface Def {
 
 export interface SimOptions {
   seed?: number;
+  /** Player effects (ratings). Defaults are a neutral, average team. */
+  players?: PlayerEffects;
+}
+
+export interface PlayerEffects {
+  /** Seconds the QB needs per read (default TUNING.readCost). Slow processors take longer. */
+  readCost?: number;
+  /** Receiver speed in yd/s by slot id (default TUNING.receiverSpeed) */
+  speedOf?: Record<string, number>;
+  /** Completion modifier by slot id (e.g. +0.05 for great hands) */
+  handsOf?: Record<string, number>;
+  /** Completion modifier for the QB's accuracy */
+  accuracy?: number;
 }
 
 export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {}): SimResult {
@@ -111,7 +124,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
     if (p.assignment.kind === 'route') {
       const isBack = p.align.y <= -2.5;
       const timed = timeRoute(routeWaypoints(p.align, p.assignment.route, p.assignment.depth), p.assignment.route, {
-        speed: TUNING.receiverSpeed,
+        speed: opts.players?.speedOf?.[p.id] ?? TUNING.receiverSpeed,
         breakCost: TUNING.breakCost,
         releaseDelay: isBack ? TUNING.backReleaseDelay : p.role === 'TE' ? 0.1 : 0,
       });
@@ -361,6 +374,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
   // ---------------------------------------------------------------------------
   // QB progression
   // ---------------------------------------------------------------------------
+  const readCost = opts.players?.readCost ?? TUNING.readCost;
   const progression = play.progression.filter((id) => recs.get(id)?.timed);
   const reads: ReadWindow[] = [];
   let thrown: ReadWindow | undefined;
@@ -376,7 +390,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
       thrown = w;
       break;
     }
-    tq = tr + TUNING.readCost;
+    tq = tr + readCost;
   }
   // Progression exhausted with time left: work back through it with a lower bar.
   let secondPass = false;
@@ -391,7 +405,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
       reads.push(options[0]);
       break;
     }
-    tq += TUNING.readCost;
+    tq += readCost;
   }
 
   // ---------------------------------------------------------------------------
@@ -403,7 +417,9 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
   if (thrown) {
     const sep = thrown.separation;
     const deep = thrown.catchPoint.y > 15;
-    const pComplete = clamp(0.2 + 0.22 * sep - (deep ? 0.08 : 0), 0.05, 0.94);
+    const skill = (opts.players?.handsOf?.[thrown.receiverId] ?? 0) + (opts.players?.accuracy ?? 0);
+    // High school completion curve: a 2.5-yard window is about a coin flip; wide open is ~85%.
+    const pComplete = clamp(0.05 + 0.2 * sep - (deep ? 0.1 : 0) + skill, 0.05, 0.88);
     const pInt = sep < 1.0 ? 0.14 : sep < 1.6 ? 0.05 : 0.01;
     const roll = rand();
     const from = qbPos(thrown.t);
@@ -414,7 +430,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
     else if (roll < pInt + pComplete) {
       const deepestDef = Math.max(...coverIdx.map((i) => defAt(i, thrown!.t + flight).y));
       const behindNobody = thrown.catchPoint.y > deepestDef + 1;
-      const yac = behindNobody ? 15 + rand() * 25 : clamp(sep * 1.6 + rand() * 4 - 1.5, 0, 25);
+      const yac = behindNobody ? 8 + rand() * 22 : clamp(sep * 0.9 + rand() * 3 - 1, 0, 15);
       result = {
         kind: 'complete',
         yards: Math.round(thrown.catchPoint.y + yac),

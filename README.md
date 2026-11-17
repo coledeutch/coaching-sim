@@ -4,8 +4,13 @@ A football coaching career sim whose real goal is to make **you** a better coach
 Design pass plays, test them against real defensive coverages, and get a diagnosis
 of *why* each rep worked or failed, written in coaching language.
 
-> Milestone 1 (current): offense only, dropback passing game. Play editor, rules-based
-> simulation vs 8 coverages, prediction-based practice, 8 Classroom lessons, mastery tracking.
+You're the new offensive coordinator at **Boca Rio**, a small Gulf Coast town where Friday
+nights are everything. The Tarpons went 3-7 last year. Head coach Dale Pruitt needs six wins.
+Ray Delgado, who called plays for the 1994 state champions, runs a bait shop by the docks
+and will teach you everything he knows.
+
+> Current version: offense only. A career season (10 games), weekly game planning, a pass game
+> and a run game, a play editor, practice, a Classroom, and mastery tracking.
 
 ## Run it on a Mac
 
@@ -39,17 +44,28 @@ saved in the browser, on your machine.
 
 To pick up new versions later: `git pull`, then `npm install`, then `npm run dev`.
 
-## How to use it
+## How to play
 
-1. **Practice**: pick a play and a defensive look (or a *Mystery look*), predict where the
-   ball should go, snap it, and read the diagnosis. Hover a line in the diagnosis to see
-   the players it talks about; click it to jump to that moment.
-2. **Playbook**: study the template plays, duplicate one, or build your own. Click a
-   receiver to give him a route, drag to move him, drag the yellow handle to change depth,
-   and set the QB's read order.
-3. **Classroom**: short lessons with live diagrams and knowledge checks.
+The first time you open it, you'll create your coach: a name, a background (Former QB, Film
+Junkie, or Players' Coach), and an offensive philosophy. If you don't know your philosophy yet,
+answer two "what do you like" questions and Ray will suggest one.
 
-Mastery only grows from what you *prove*: predictions in Practice and lesson checks.
+Then every week:
+
+1. **Office → Scouting report**: what does this week's defense do? Coverage mix, box count,
+   Ray's notes on what beats it.
+2. **Office → Game plan**: pick 5-12 plays for your call sheet. The table shows how each play
+   fits their most common coverages, and how well your team knows it (install pips).
+3. **Practice**: your scout team runs their defense. Name the coverage, predict the read, snap
+   it. Each rep installs the play; plays with low install get busted on game day.
+4. **Friday night**: call every offensive snap. The defense adapts to what you're doing (watch
+   the press box notes). After any play, click **Why?** for the full breakdown.
+5. **Film review**: the inbox fills with reactions from Pruitt, Ray, and your players.
+
+Other tabs:
+- **Playbook**: study templates or design your own plays (routes, depths, read order, runs).
+- **Practice → Film room lab**: test any play against any look, free.
+- **Classroom**: Ray's lessons with live diagrams and knowledge checks.
 
 ## How the engine works
 
@@ -61,6 +77,11 @@ Mastery only grows from what you *prove*: predictions in Practice and lesson che
   Defenders have momentum, which is why breaks create separation.
 - Protection counts rushers against blockers. A free rusher means about 1.7s to throw.
 - The QB works the play's progression and throws to the first window that's open enough.
+- Runs (`run.ts`) are decided by the box count: blockers vs defenders near the line, plus the
+  scheme (Inside Zone leaves the backside end unblocked; Power pulls a guard).
+- Game Day (`game.ts`) handles downs, clock, scoring, simulated opponent drives, and the opposing
+  coordinator, who calls from his scouting tendencies and adjusts to what's beating him.
+- Player ratings matter: receiver speed, hands, the QB's accuracy and read speed, the back and line.
 - The **diagnosis is the engine's own reasoning**: which defender was in conflict, what
   each read looked like, what the best answer was, and coaching adjustments from
   `content/knowledge.ts`.
@@ -72,7 +93,11 @@ src/model/types.ts      shared data model (plays, looks, sim results, mastery)
 src/engine/             simulation, routes, zones, numbering, concept detection, mastery
 src/content/            formations, template plays, defensive looks, lessons, topics, knowledge
 src/ui/                 React views: Field (SVG), Playbook, Practice, Classroom
+src/content/world.ts    Boca Rio: story, people, roster, opponents
+src/engine/game.ts      Game Day state machine and the opposing coordinator
+src/engine/career.ts    weekly loop: results, job security, buy-in, inbox
 tests/engine.test.ts    "football truths" the engine must respect
+tests/game.test.ts      game day and career rules
 scripts/matrix.ts       every template play vs every look, for tuning
 ```
 

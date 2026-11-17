@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoverageFamily, DefensiveLook, MasteryEvidence, SimResult, TraceEvent } from '../model/types';
 import { useStore } from '../state/store';
-import { TEMPLATE_PLAYS } from '../content/plays';
+import { ALL_TEMPLATES } from '../content/plays';
 import { LOOKS, lookById } from '../content/looks';
-import { simulate } from '../engine/sim';
+import { simulatePlay } from '../engine/play';
+import { countBox } from '../engine/run';
+import { opponentForWeek, seasonOver } from '../engine/career';
+import { playerEffects } from '../engine/game';
+import { Pips } from './OfficeView';
 import { ROUTES } from '../engine/routes';
 import { CONCEPTS } from '../engine/concepts';
 import { numberReceivers } from '../engine/formation';
@@ -25,6 +29,8 @@ const FAMILIES: { id: CoverageFamily; name: string; shell: string }[] = [
 type Phase = 'predict' | 'playing' | 'review';
 
 const RESULT_TEXT: Record<string, string> = {
+  run: 'Run',
+  fumble: 'Fumble',
   complete: 'Complete',
   incomplete: 'Incomplete',
   interception: 'Intercepted',
@@ -33,12 +39,26 @@ const RESULT_TEXT: Record<string, string> = {
 };
 
 export function PracticeView() {
-  const { plays, practicePlayId, practiceLookId, setPractice, addEvidence, openLesson, countRep } = useStore();
-  const allPlays = [...plays, ...TEMPLATE_PLAYS];
-  const play = allPlays.find((p) => p.id === practicePlayId) ?? TEMPLATE_PLAYS[0];
-  const [mystery, setMystery] = useState(false);
-  const [hiddenLook, setHiddenLook] = useState<DefensiveLook>(() => LOOKS[0]);
+  const { plays, practicePlayId, practiceLookId, setPractice, addEvidence, openLesson, countRep, career, updateCareer, practiceMode, setPracticeMode } = useStore();
+  const allPlays = [...plays, ...ALL_TEMPLATES];
+  // Week practice: only your call sheet, against the opponent's scout-team looks, using limited reps.
+  const weekMode = practiceMode === 'week' && !!career && !seasonOver(career);
+  const opp = weekMode ? opponentForWeek(career!.week) : null;
+  const planPlays = weekMode ? career!.gamePlan.map((id) => allPlays.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p) : [];
+  const selectable = weekMode ? planPlays : allPlays;
+  const play = selectable.find((p) => p.id === practicePlayId) ?? selectable[0] ?? ALL_TEMPLATES[0];
+  const [mysteryChoice, setMystery] = useState(false);
+  const mystery = weekMode || mysteryChoice;
+  const drawLook = (): DefensiveLook => {
+    if (!opp) return LOOKS[Math.floor(Math.random() * LOOKS.length)];
+    const entries = Object.entries(opp.coverageMix);
+    let r = Math.random() * entries.reduce((a, [, w]) => a + w, 0);
+    for (const [id, w] of entries) if ((r -= w) <= 0) return lookById(id);
+    return lookById(entries[0][0]);
+  };
+  const [hiddenLook, setHiddenLook] = useState<DefensiveLook>(() => drawLook());
   const look = mystery ? hiddenLook : lookById(practiceLookId);
+  const repsLeft = career?.practiceRepsLeft ?? 0;
 
   const [phase, setPhase] = useState<Phase>('predict');
   const [predFamily, setPredFamily] = useState<CoverageFamily | null>(null);
@@ -62,10 +82,10 @@ export function PracticeView() {
     setPlaying(false);
     setGraded(null);
     setHover(null);
-    if (newMystery) setHiddenLook(LOOKS[Math.floor(Math.random() * LOOKS.length)]);
+    if (newMystery || weekMode) setHiddenLook(drawLook());
   };
 
-  useEffect(() => reset(), [practicePlayId, practiceLookId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => reset(), [practicePlayId, practiceLookId, practiceMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Playback loop
   const raf = useRef<number>();
@@ -95,7 +115,8 @@ export function PracticeView() {
   }, [playing, result, speed]);
 
   const snap = () => {
-    const r = simulate(play, look, { seed: Math.floor(Math.random() * 1e9) });
+    if (weekMode && repsLeft <= 0) return;
+    const r = simulatePlay(play, look, { seed: Math.floor(Math.random() * 1e9), ...(weekMode && career ? playerEffects(career.roster) : {}) });
     setResult(r);
     setFrameIdx(0);
     setPhase('playing');
@@ -104,7 +125,13 @@ export function PracticeView() {
     // Grade the prediction: this is the evidence that drives mastery.
     const ev: Omit<MasteryEvidence, 'at'>[] = [];
     const g: { target?: boolean; family?: boolean; shell?: boolean } = {};
-    if (predTarget) {
+    if (predTarget && play.run) {
+      // Runs: "is this a good look to run against?" The box count is the answer.
+      const adv = countBox(play, look).advantage;
+      const correct = predTarget === 'yes' ? adv >= 0 : adv < 0;
+      g.target = correct;
+      ev.push({ topic: 'boxCount', correct, source: 'prediction', detail: `${play.name} vs ${look.name}: said ${predTarget}` });
+    } else if (predTarget) {
       const correct = predTarget === 'none' ? r.bestAnswer === null : r.goodAnswers.includes(predTarget);
       g.target = correct;
       const topics = new Set<string>([look.family, ...r.concepts.map((c) => CONCEPTS[c].topic)]);
@@ -121,11 +148,20 @@ export function PracticeView() {
     if (ev.length) addEvidence(ev);
     countRep(g.target);
     setGraded(g);
+    if (weekMode) {
+      // A practice rep installs the play: +1, or +2 when the read was right (the team saw it done correctly).
+      updateCareer((c) => ({
+        ...c,
+        practiceRepsLeft: Math.max(0, c.practiceRepsLeft - 1),
+        install: { ...c.install, [play.id]: Math.min(3, (c.install[play.id] ?? 0) + (g.target ? 2 : 1)) },
+        roster: c.roster.map((p) => (p.slot === 'QB' && g.target ? { ...p, buyIn: Math.min(100, p.buyIn + 1) } : p)),
+      }));
+    }
   };
 
   const frame = result ? result.frames[frameIdx] : null;
   const answerIds = phase === 'review' && result ? result.goodAnswers : undefined;
-  const runners = play.players.filter((p) => p.assignment.kind === 'route');
+  const runners = play.run ? [] : play.players.filter((p) => p.assignment.kind === 'route');
   const highlight = hover
     ? { receivers: hover.receivers, defenders: hover.defenders }
     : undefined;
@@ -135,19 +171,44 @@ export function PracticeView() {
   return (
     <div className="three-col">
       <aside className="panel list-panel">
-        <h2>Practice Lab</h2>
-        <label className="field-label">Play</label>
-        <select value={play.id} onChange={(e) => setPractice(e.target.value)}>
-          {plays.length > 0 && (
-            <optgroup label="My playbook">
-              {plays.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </optgroup>
-          )}
-          <optgroup label="Templates">
-            {TEMPLATE_PLAYS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </optgroup>
-        </select>
+        {career && !seasonOver(career) && (
+          <div className="toggle-row mode-toggle">
+            <button className={`chip ${weekMode ? 'on' : ''}`} onClick={() => setPracticeMode('week')}>Week {career.week} practice</button>
+            <button className={`chip ${!weekMode ? 'on' : ''}`} onClick={() => setPracticeMode('lab')}>Film room lab</button>
+          </div>
+        )}
+        {weekMode ? (
+          <>
+            <h2>Practice vs {opp!.school}</h2>
+            <p className="small muted">Your scout team runs {opp!.school}'s defense. Each rep installs the play (install pips): +1, or +2 when you call the read right. {repsLeft} rep{repsLeft === 1 ? '' : 's'} left this week.</p>
+            <ul className="play-list">
+              {planPlays.map((p) => (
+                <li key={p.id} className={p.id === play.id ? 'active' : ''} onClick={() => setPractice(p.id)}>
+                  <span>{p.name}</span>
+                  <Pips n={career!.install[p.id] ?? 0} />
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <h2>Film room lab</h2>
+            <p className="small muted">Experiment freely: any play, any look. The lab doesn't use practice reps or install plays.</p>
+            <label className="field-label">Play</label>
+            <select value={play.id} onChange={(e) => setPractice(e.target.value)}>
+              {plays.length > 0 && (
+                <optgroup label="My playbook">
+                  {plays.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </optgroup>
+              )}
+              <optgroup label="Templates">
+                {ALL_TEMPLATES.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </optgroup>
+            </select>
+          </>
+        )}
 
+        {!weekMode && <>
         <label className="field-label">Defensive look</label>
         <div className="toggle-row">
           <button className={`chip ${!mystery ? 'on' : ''}`} onClick={() => { setMystery(false); reset(false); }}>Choose a look</button>
@@ -165,6 +226,7 @@ export function PracticeView() {
         ) : (
           <p className="muted small">The defense is hidden until the snap. Read the alignment, name the coverage, then predict the throw: game conditions.</p>
         )}
+        </>}
         {!mystery && (
           <div className="look-card">
             <b>{look.name}</b>
@@ -226,6 +288,15 @@ export function PracticeView() {
                 </div>
               </div>
             )}
+            {play.run ? (
+              <div className="q">
+                <div className="q-title"><span className="step">{mystery ? 2 : 1}</span> Count the box. Is this a good look to run {play.name} against?</div>
+                <div className="chips">
+                  <button className={`chip ${predTarget === 'yes' ? 'on' : ''}`} onClick={() => setPredTarget('yes')}>Yes: we have the numbers (or even)</button>
+                  <button className={`chip ${predTarget === 'no' ? 'on' : ''}`} onClick={() => setPredTarget('no')}>No: they've loaded the box</button>
+                </div>
+              </div>
+            ) : (
             <div className="q">
               <div className="q-title"><span className="step">{mystery ? 2 : 1}</span> Where should the ball go against this look? <span className="muted">(click a receiver)</span></div>
               <div className="chips">
@@ -237,7 +308,9 @@ export function PracticeView() {
                 <button className={`chip ${predTarget === 'none' ? 'on' : ''}`} onClick={() => setPredTarget('none')}>Nobody: check it down / throw it away</button>
               </div>
             </div>
-            <button className="btn primary big" disabled={!canSnap} onClick={snap}>Snap it</button>
+            )}
+            <button className="btn primary big" disabled={!canSnap || (weekMode && repsLeft <= 0)} onClick={snap}>{weekMode ? `Snap it (uses 1 of ${repsLeft} reps)` : 'Snap it'}</button>
+            {weekMode && repsLeft <= 0 && <span className="muted small"> No practice reps left this week. Go play the game, or switch to the film room lab.</span>}
             {!canSnap && <span className="muted small"> Make your call first. Predicting is how you learn.</span>}
           </div>
         )}
@@ -280,7 +353,7 @@ export function PracticeView() {
   );
 }
 
-function Diagnosis(props: {
+export function Diagnosis(props: {
   result: SimResult;
   look: DefensiveLook;
   playName: string;
@@ -293,11 +366,13 @@ function Diagnosis(props: {
   onLesson: (id: string) => void;
   onAgain: () => void;
   onTryLook: (id: string) => void;
+  /** Game mode: hide the practice-only sections */
+  compact?: boolean;
 }) {
   const { result: r, look, predTarget, predFamily, graded, revealed, onHover, onSeek, onLesson, onAgain, onTryLook } = props;
   if (!revealed) return <div className="section"><p className="muted">Watching the rep…</p></div>;
   const groups: { title: string; kinds: TraceEvent['kind'][] }[] = [
-    { title: 'Before the snap', kinds: ['presnap', 'protection'] },
+    { title: 'Before the snap', kinds: ['presnap', 'box', 'protection'] },
     { title: 'What happened', kinds: ['conflict', 'defender', 'read', 'result', 'scheme'] },
     { title: 'Coaching adjustments', kinds: ['adjustment'] },
   ];
@@ -319,7 +394,12 @@ function Diagnosis(props: {
             {!graded.family && graded.shell && ' Right shell, wrong coverage. Close.'}
           </div>
         )}
-        {graded?.target !== undefined && (
+        {graded?.target !== undefined && r.isRun && (
+          <div className={graded.target ? 'ok' : 'bad'}>
+            {graded.target ? '✔ Right call on the box count.' : '✘ Check the box count below: that call was wrong.'}
+          </div>
+        )}
+        {graded?.target !== undefined && !r.isRun && (
           <div className={graded.target ? 'ok' : 'bad'}>
             {graded.target ? '✔ Good read. ' : '✘ '}
             {predTarget === 'none'
@@ -356,7 +436,7 @@ function Diagnosis(props: {
         );
       })}
 
-      <div className="section">
+      {!r.isRun && <div className="section">
         <h3>Every receiver's best window</h3>
         <table className="windows">
           <thead><tr><th>Rcvr</th><th>Sep.</th><th>When</th><th>Closest defender</th></tr></thead>
@@ -372,14 +452,14 @@ function Diagnosis(props: {
           </tbody>
         </table>
         <p className="small muted">Separation = yards between the receiver and the nearest defender when the ball arrives. 2.5+ is open, 1.2-2.5 is a tight window.</p>
-      </div>
+      </div>}
 
       <div className="section">
         <h3>How to beat {look.name}</h3>
         <p className="small"><RichText text={HOW_TO_BEAT[look.family]} /></p>
       </div>
 
-      <div className="section">
+      {!props.compact && <div className="section">
         <h3>Study next</h3>
         <div className="chips">
           {r.suggestedLessons.map((t) => {
@@ -394,7 +474,7 @@ function Diagnosis(props: {
           ))}
         </div>
         <button className="btn primary" onClick={onAgain}>Next rep</button>
-      </div>
+      </div>}
     </>
   );
 }

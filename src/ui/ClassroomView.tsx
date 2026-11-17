@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { LESSONS, lessonById, type LessonBlock } from '../content/lessons';
 import { TOPICS } from '../content/topics';
 import { masteryFor } from '../engine/mastery';
-import { TEMPLATE_PLAYS } from '../content/plays';
+import { ALL_TEMPLATES } from '../content/plays';
 import { lookById } from '../content/looks';
 import { Field } from './Field';
 import { RichText } from './RichText';
@@ -21,7 +21,8 @@ export function ClassroomView() {
   return (
     <div className="three-col">
       <aside className="panel list-panel">
-        <h2>Coach's Classroom</h2>
+        <h2>Ray's Bait Shop</h2>
+        <p className="small muted">Coach's Classroom: everything Ray can teach you.</p>
         <ul className="lesson-list">
           {LESSONS.map((l) => {
             const m = lessonMastery(l.topics);
@@ -44,7 +45,7 @@ export function ClassroomView() {
       <aside className="panel inspector">
         <h2>Your mastery</h2>
         <p className="small muted">Mastery comes from what you prove: predictions in Practice and the checks in each lesson. Recent answers count most.</p>
-        {(['Reading the defense', 'Coverages', 'Concepts', 'Quarterbacking'] as const).map((g) => (
+        {(['Reading the defense', 'Coverages', 'Concepts', 'Run game', 'Quarterbacking', 'Game planning'] as const).map((g) => (
           <div key={g} className="section">
             <h3>{g}</h3>
             {mastery.filter((x) => x.t.group === g).map(({ t, m }) => (
@@ -73,7 +74,7 @@ function Block({ block: b }: { block: LessonBlock }) {
     case 'list':
       return <ul>{b.items.map((it, i) => <li key={i}><RichText text={it} /></li>)}</ul>;
     case 'diagram': {
-      const play = TEMPLATE_PLAYS.find((p) => p.id === b.playId)!;
+      const play = ALL_TEMPLATES.find((p) => p.id === b.playId)!;
       return (
         <figure className="diagram">
           <Field play={play} look={lookById(b.lookId)} showZones={b.zones} yMin={-7} yMax={24} />
