@@ -37,8 +37,8 @@ export const FORMATIONS: FormationDef[] = [
     players: [
       ...OL,
       { id: 'X', role: 'WR', align: { x: -20, y: 0 } },
-      { id: 'H', role: 'WR', align: { x: 6, y: -1 } },
-      { id: 'Y', role: 'WR', align: { x: 11, y: -1 } },
+      { id: 'H', role: 'WR', align: { x: 7, y: -1 } },
+      { id: 'Y', role: 'WR', align: { x: 12, y: -1 } },
       { id: 'Z', role: 'WR', align: { x: 20, y: 0 } },
       { id: 'RB', role: 'RB', align: { x: -1.5, y: -5 } },
     ],

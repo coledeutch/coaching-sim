@@ -130,15 +130,7 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
   const strength = n.strength;
   const defs: Def[] = look.players.map((spot) => {
     const mode = resolveMode(spot, n, recs, strength);
-    let align = alignDefender(spot, play, n);
-    // A man defender whose rule sent him to a different receiver (e.g. #3 in trips) aligns on him.
-    if (mode.kind === 'man' && spot.align.kind === 'abs') {
-      const r = recs.get(mode.targetId)!;
-      if (r.spot.align.y > -2.5) {
-        const o = r.spot.align.x < 0 ? -1 : 1;
-        align = { x: r.spot.align.x - o * 0.8, y: Math.min(spot.align.y, 5) };
-      }
-    }
+    const align = defenderAlign(spot, mode, play, n, recs);
     let leverage = -0.7;
     if (mode.kind === 'man' || mode.kind === 'match') {
       const tid = mode.targetId;
@@ -504,7 +496,9 @@ export function simulate(play: Play, look: DefensiveLook, opts: SimOptions = {})
       const seen = d.seenLog[i] ?? [];
       const chose = d.threatLog[i];
       if (seen.length < 2 || !chose || !seen.includes(w.receiverId) || chose === w.receiverId) continue;
-      const a = recPos(chose, w.t), b = recPos(w.receiverId, w.t);
+      // Compare where the two receivers are when the ball arrives.
+      const tc = w.t + TUNING.releaseTime + dist(qbPos(w.t), w.catchPoint) / TUNING.ballSpeed;
+      const a = recPos(chose, tc), b = w.catchPoint;
       if (dist(a, b) < 4) continue;
       if (conflicts.some((k) => k.defenderId === d.spot.id && k.freed === w.receiverId)) continue;
       conflicts.push({
@@ -552,6 +546,19 @@ function protectPos(spot: OffPlayerSpot, t: number): Point {
   const k = Math.min(1, t / 0.6);
   const o = spot.align.x < 0 ? -1 : 1;
   return { x: spot.align.x + o * 1.2 * k, y: spot.align.y + (spot.align.y < -2 ? 1.2 : -1) * k };
+}
+
+/** Where a defender lines up. A man defender whose rule sent him to a different receiver (e.g. #3 in trips) aligns on him. */
+function defenderAlign(spot: DefPlayerSpot, mode: DefMode, play: Play, n: Numbering, recs: Map<string, Rec>): Point {
+  const align = alignDefender(spot, play, n);
+  if (mode.kind === 'man' && spot.align.kind === 'abs') {
+    const r = recs.get(mode.targetId)!;
+    if (r.spot.align.y > -2.5) {
+      const o = r.spot.align.x < 0 ? -1 : 1;
+      return { x: r.spot.align.x - o * 0.8, y: Math.min(spot.align.y, 5) };
+    }
+  }
+  return align;
 }
 
 function resolveMode(spot: DefPlayerSpot, n: Numbering, recs: Map<string, Rec>, strength: 'L' | 'R'): DefMode {
@@ -656,7 +663,7 @@ function buildTrace(c: DiagContext): TraceEvent[] {
   } else {
     ev.push({
       t: 0, kind: 'protection',
-      text: `${c.rushers} rushers vs ${c.blockers} blockers: protection held, giving the QB about ${fmt(c.pressureTime)}s.${c.blockers - c.rushers >= 2 ? ' You kept extra blockers in against a 4-man rush; that\'s a receiver you could have used.' : ''}`,
+      text: `${c.rushers} rushers vs ${c.blockers} blockers: protection held, giving the QB about ${fmt(c.pressureTime)}s.${c.blockers - c.rushers >= 3 ? ' You kept extra blockers in against a 4-man rush; that\'s a receiver you could have used.' : ''}`,
       topics: ['protection'],
     });
   }
@@ -711,7 +718,7 @@ function buildTrace(c: DiagContext): TraceEvent[] {
     if (freedBy) {
       ev.push({
         t: target.t, kind: 'scheme',
-        text: `Why it worked: ${target.receiverId} was open because ${defName(freedBy.defenderId)} was put in conflict and chose ${freedBy.chose}. This is what the concept is designed to do: make one defender wrong.`,
+        text: `${c.result.kind === 'complete' ? 'Why it worked' : 'The read was right'}: ${target.receiverId} was open because ${defName(freedBy.defenderId)} was put in conflict and chose ${freedBy.chose}. This is what the concept is designed to do: make one defender wrong.${c.result.kind === 'complete' ? '' : ' Good decisions don\'t always produce completions; over many reps, this read wins.'}`,
         defenders: [freedBy.defenderId], receivers: [target.receiverId], topics: ['conflict'],
       });
     } else if (target.openness !== 'open') {
@@ -761,4 +768,46 @@ function buildTrace(c: DiagContext): TraceEvent[] {
     }
   }
   return ev;
+}
+
+// ---------------------------------------------------------------------------
+// Pre-snap picture (for diagrams and the editor): where each defender lines up
+// against this formation, and what his rule is.
+// ---------------------------------------------------------------------------
+export interface PresnapDefender {
+  spot: DefPlayerSpot;
+  pos: Point;
+  kind: 'rush' | 'zone' | 'man' | 'match';
+  zone?: ZoneGeom;
+  manTarget?: string;
+  rule: string;
+}
+
+export function presnap(play: Play, look: DefensiveLook): PresnapDefender[] {
+  const n = numberReceivers(play);
+  const recs = new Map<string, Rec>();
+  for (const p of play.players) {
+    if (p.role === 'OL' || p.role === 'QB') continue;
+    recs.set(p.id, { spot: p, protect: p.assignment.kind !== 'route', timed: p.assignment.kind === 'route' ? ({} as TimedRoute) : undefined });
+  }
+  return look.players.map((spot) => {
+    const mode = resolveMode(spot, n, recs, n.strength);
+    const pos = defenderAlign(spot, mode, play, n, recs);
+    const label = (id?: string) => (id ? `${id} (${n.labelOf[id] ?? ''})` : '');
+    switch (mode.kind) {
+      case 'rush':
+        return { spot, pos, kind: 'rush', rule: 'Rush the passer' };
+      case 'zone':
+        return { spot, pos, kind: 'zone', zone: mode.geom, rule: `Zone: ${ZONE_TEXT[mode.geom.area]}` };
+      case 'man':
+        return { spot, pos, kind: 'man', manTarget: mode.targetId, rule: `Man on ${label(mode.targetId)}` };
+      case 'match':
+        return {
+          spot, pos, kind: 'match', zone: mode.geom, manTarget: mode.targetId,
+          rule: mode.targetId
+            ? `Match: carry ${label(mode.targetId)} if he goes vertical, otherwise ${ZONE_NAME[mode.geom.area]}`
+            : `Zone: ${ZONE_TEXT[mode.geom.area]}`,
+        };
+    }
+  });
 }
